@@ -1,55 +1,34 @@
-import { useState } from "react";
-
-const defaultProducts = [
-  {
-    id: 1,
-    name: "Classic T-Shirt",
-    price: 1200,
-    category: "Fashion",
-    image:
-      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800",
-  },
-  {
-    id: 2,
-    name: "Running Shoes",
-    price: 3500,
-    category: "Footwear",
-    image:
-      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800",
-  },
-  {
-    id: 3,
-    name: "Smart Watch",
-    price: 4500,
-    category: "Electronics",
-    image:
-      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800",
-  },
-  {
-    id: 4,
-    name: "Backpack",
-    price: 1800,
-    category: "Accessories",
-    image:
-      "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800",
-  },
-];
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
 
 function Products() {
-  const [products] = useState(() => {
-    const saved = localStorage.getItem("shopnepal_products");
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-    if (saved) {
-      return JSON.parse(saved);
+  const loadProducts = async () => {
+    setLoading(true);
+    setError("");
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error loading products:", error);
+      setError("Unable to load products.");
+      setProducts([]);
+    } else {
+      setProducts(data || []);
     }
 
-    localStorage.setItem(
-      "shopnepal_products",
-      JSON.stringify(defaultProducts)
-    );
+    setLoading(false);
+  };
 
-    return defaultProducts;
-  });
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
   return (
     <main className="products-page">
@@ -65,7 +44,23 @@ function Products() {
 
       <section className="products-section">
 
-        {products.length === 0 ? (
+        {loading ? (
+          <div className="empty-products">
+            <h2>Loading products...</h2>
+            <p>
+              Please wait while we load the latest products.
+            </p>
+          </div>
+        ) : error ? (
+          <div className="empty-products">
+            <h2>Something went wrong</h2>
+            <p>{error}</p>
+
+            <button onClick={loadProducts}>
+              Try Again
+            </button>
+          </div>
+        ) : products.length === 0 ? (
           <div className="empty-products">
             <h2>No products available</h2>
             <p>
