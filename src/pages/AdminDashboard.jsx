@@ -1,43 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const defaultProducts = [
-  {
-    id: 1,
-    name: "Classic T-Shirt",
-    price: 1200,
-    category: "Fashion",
-    image:
-      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800",
-  },
-  {
-    id: 2,
-    name: "Running Shoes",
-    price: 3500,
-    category: "Footwear",
-    image:
-      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800",
-  },
-  {
-    id: 3,
-    name: "Smart Watch",
-    price: 4500,
-    category: "Electronics",
-    image:
-      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800",
-  },
-  {
-    id: 4,
-    name: "Backpack",
-    price: 1800,
-    category: "Accessories",
-    image:
-      "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800",
-  },
-];
+import { supabase } from "../lib/supabase";
 
 function AdminDashboard() {
-
   const navigate = useNavigate();
 
   const [products, setProducts] = useState([]);
@@ -51,119 +16,138 @@ function AdminDashboard() {
 
   const [editingId, setEditingId] = useState(null);
   const [formError, setFormError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
+  // Check existing admin login and load products
   useEffect(() => {
-
-    const loggedIn =
-      localStorage.getItem("shopnepal_admin");
+    const loggedIn = localStorage.getItem("shopnepal_admin");
 
     if (loggedIn !== "true") {
       navigate("/admin");
       return;
     }
 
-    const saved =
-      localStorage.getItem("shopnepal_products");
-
-    if (saved) {
-      setProducts(JSON.parse(saved));
-    } else {
-
-      localStorage.setItem(
-        "shopnepal_products",
-        JSON.stringify(defaultProducts)
-      );
-
-      setProducts(defaultProducts);
-    }
-
+    loadProducts();
   }, [navigate]);
 
+  // Load products from Supabase
+  const loadProducts = async () => {
+    setLoading(true);
+    setFormError("");
 
-  const saveProducts = (updatedProducts) => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    setProducts(updatedProducts);
+    if (error) {
+      console.error("Error loading products:", error);
+      setFormError("Unable to load products from the database.");
+      setProducts([]);
+    } else {
+      setProducts(data || []);
+    }
 
-    localStorage.setItem(
-      "shopnepal_products",
-      JSON.stringify(updatedProducts)
-    );
+    setLoading(false);
   };
 
-
   const handleChange = (e) => {
-
     setForm({
       ...form,
       [e.target.name]: e.target.value,
     });
-
   };
 
-
-  const addProduct = (e) => {
-
+  // Add product to Supabase
+  const addProduct = async (e) => {
     e.preventDefault();
 
     if (
-      !form.name ||
+      !form.name.trim() ||
       !form.price ||
-      !form.category ||
-      !form.image
+      !form.category.trim() ||
+      !form.image.trim()
     ) {
       setFormError("Please fill all fields.");
+
       try {
         alert("Please fill all fields.");
       } catch {
         // Safe for sandboxed iframe
       }
+
       return;
     }
 
     setFormError("");
+    setSaving(true);
 
-    const newProduct = {
-      id: Date.now(),
-      name: form.name,
-      price: Number(form.price),
-      category: form.category,
-      image: form.image,
-    };
+    const { data, error } = await supabase
+      .from("products")
+      .insert([
+        {
+          name: form.name.trim(),
+          price: Number(form.price),
+          category: form.category.trim(),
+          image: form.image.trim(),
+        },
+      ])
+      .select()
+      .single();
 
-    saveProducts([
-      ...products,
-      newProduct,
+    if (error) {
+      console.error("Error adding product:", error);
+      setFormError(
+        "Could not add product. Please check your database settings."
+      );
+      setSaving(false);
+      return;
+    }
+
+    setProducts((currentProducts) => [
+      data,
+      ...currentProducts,
     ]);
 
     clearForm();
+    setSaving(false);
   };
 
-
-  const deleteProduct = (id) => {
-
+  // Delete product from Supabase
+  const deleteProduct = async (id) => {
     let confirmed = true;
+
     try {
-      confirmed =
-        window.confirm(
-          "Are you sure you want to delete this product?"
-        );
+      confirmed = window.confirm(
+        "Are you sure you want to delete this product?"
+      );
     } catch {
       confirmed = true;
     }
 
     if (!confirmed) return;
 
-    const updatedProducts =
-      products.filter(
-        (product) => product.id !== id
-      );
+    setFormError("");
 
-    saveProducts(updatedProducts);
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error deleting product:", error);
+      setFormError("Could not delete the product.");
+      return;
+    }
+
+    setProducts((currentProducts) =>
+      currentProducts.filter((product) => product.id !== id)
+    );
   };
 
-
+  // Start editing a product
   const startEdit = (product) => {
-
     setEditingId(product.id);
     setFormError("");
 
@@ -171,7 +155,7 @@ function AdminDashboard() {
       name: product.name,
       price: product.price,
       category: product.category,
-      image: product.image,
+      image: product.image || "",
     });
 
     window.scrollTo({
@@ -180,38 +164,54 @@ function AdminDashboard() {
     });
   };
 
-
-  const updateProduct = (e) => {
-
+  // Update product in Supabase
+  const updateProduct = async (e) => {
     e.preventDefault();
 
-    const updatedProducts =
-      products.map((product) => {
+    if (
+      !form.name.trim() ||
+      !form.price ||
+      !form.category.trim() ||
+      !form.image.trim()
+    ) {
+      setFormError("Please fill all fields.");
+      return;
+    }
 
-        if (product.id === editingId) {
+    setFormError("");
+    setSaving(true);
 
-          return {
-            ...product,
-            name: form.name,
-            price: Number(form.price),
-            category: form.category,
-            image: form.image,
-          };
+    const { data, error } = await supabase
+      .from("products")
+      .update({
+        name: form.name.trim(),
+        price: Number(form.price),
+        category: form.category.trim(),
+        image: form.image.trim(),
+      })
+      .eq("id", editingId)
+      .select()
+      .single();
 
-        }
+    if (error) {
+      console.error("Error updating product:", error);
+      setFormError("Could not update the product.");
+      setSaving(false);
+      return;
+    }
 
-        return product;
-
-      });
-
-    saveProducts(updatedProducts);
+    setProducts((currentProducts) =>
+      currentProducts.map((product) =>
+        product.id === editingId ? data : product
+      )
+    );
 
     clearForm();
+    setSaving(false);
   };
 
-
+  // Clear form
   const clearForm = () => {
-
     setForm({
       name: "",
       price: "",
@@ -223,16 +223,11 @@ function AdminDashboard() {
     setFormError("");
   };
 
-
+  // Logout
   const logout = () => {
-
-    localStorage.removeItem(
-      "shopnepal_admin"
-    );
-
+    localStorage.removeItem("shopnepal_admin");
     navigate("/admin");
   };
-
 
   return (
     <main className="dashboard-page">
@@ -262,7 +257,6 @@ function AdminDashboard() {
 
         </div>
 
-
         <div className="stats-grid">
 
           <div className="stat-card">
@@ -282,7 +276,6 @@ function AdminDashboard() {
 
         </div>
 
-
         <section className="admin-section">
 
           <div className="admin-section-header">
@@ -298,7 +291,6 @@ function AdminDashboard() {
             </div>
 
           </div>
-
 
           <form
             className="product-form"
@@ -324,7 +316,6 @@ function AdminDashboard() {
 
             </div>
 
-
             <div className="form-group">
 
               <label>
@@ -341,7 +332,6 @@ function AdminDashboard() {
 
             </div>
 
-
             <div className="form-group">
 
               <label>
@@ -356,7 +346,6 @@ function AdminDashboard() {
               />
 
             </div>
-
 
             <div className="form-group form-full">
 
@@ -373,35 +362,35 @@ function AdminDashboard() {
 
             </div>
 
-
             {formError && (
               <div className="login-error form-full">
                 {formError}
               </div>
             )}
 
-
             <div className="form-buttons">
 
               <button
                 type="submit"
                 className="save-product-btn"
+                disabled={saving}
               >
-                {editingId
+                {saving
+                  ? "Saving..."
+                  : editingId
                   ? "Update Product"
                   : "Add Product"}
               </button>
 
               {editingId && (
-
                 <button
                   type="button"
                   className="cancel-btn"
                   onClick={clearForm}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
-
               )}
 
             </div>
@@ -409,7 +398,6 @@ function AdminDashboard() {
           </form>
 
         </section>
-
 
         <section className="admin-section">
 
@@ -429,68 +417,82 @@ function AdminDashboard() {
 
           </div>
 
+          {loading ? (
+            <div className="empty-products">
+              <h2>Loading products...</h2>
+              <p>
+                Please wait while we load your inventory.
+              </p>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="empty-products">
+              <h2>No products yet</h2>
+              <p>
+                Add your first product using the form above.
+              </p>
+            </div>
+          ) : (
+            <div className="admin-products">
 
-          <div className="admin-products">
+              {products.map((product) => (
 
-            {products.map((product) => (
+                <div
+                  className="admin-product"
+                  key={product.id}
+                >
 
-              <div
-                className="admin-product"
-                key={product.id}
-              >
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                  />
 
-                <img
-                  src={product.image}
-                  alt={product.name}
-                />
+                  <div className="admin-product-info">
 
-                <div className="admin-product-info">
+                    <small>
+                      {product.category}
+                    </small>
 
-                  <small>
-                    {product.category}
-                  </small>
+                    <h3>
+                      {product.name}
+                    </h3>
 
-                  <h3>
-                    {product.name}
-                  </h3>
+                    <strong>
+                      Rs.{" "}
+                      {Number(
+                        product.price
+                      ).toLocaleString()}
+                    </strong>
 
-                  <strong>
-                    Rs.{" "}
-                    {Number(
-                      product.price
-                    ).toLocaleString()}
-                  </strong>
+                  </div>
+
+                  <div className="product-actions">
+
+                    <button
+                      className="edit-btn"
+                      onClick={() =>
+                        startEdit(product)
+                      }
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      className="delete-btn"
+                      onClick={() =>
+                        deleteProduct(product.id)
+                      }
+                    >
+                      Delete
+                    </button>
+
+                  </div>
 
                 </div>
 
+              ))}
 
-                <div className="product-actions">
-
-                  <button
-                    className="edit-btn"
-                    onClick={() =>
-                      startEdit(product)
-                    }
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    className="delete-btn"
-                    onClick={() =>
-                      deleteProduct(product.id)
-                    }
-                  >
-                    Delete
-                  </button>
-
-                </div>
-
-              </div>
-
-            ))}
-
-          </div>
+            </div>
+          )}
 
         </section>
 
