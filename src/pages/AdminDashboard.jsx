@@ -19,19 +19,23 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Check existing admin login and load products
   useEffect(() => {
-    const loggedIn = localStorage.getItem("shopnepal_admin");
+    const checkAuth = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (loggedIn !== "true") {
-      navigate("/admin");
-      return;
-    }
+      if (!user) {
+        navigate("/admin");
+        return;
+      }
 
-    loadProducts();
+      loadProducts();
+    };
+
+    checkAuth();
   }, [navigate]);
 
-  // Load products from Supabase
   const loadProducts = async () => {
     setLoading(true);
     setFormError("");
@@ -59,7 +63,6 @@ function AdminDashboard() {
     });
   };
 
-  // Add product to Supabase
   const addProduct = async (e) => {
     e.preventDefault();
 
@@ -70,13 +73,6 @@ function AdminDashboard() {
       !form.image.trim()
     ) {
       setFormError("Please fill all fields.");
-
-      try {
-        alert("Please fill all fields.");
-      } catch {
-        // Safe for sandboxed iframe
-      }
-
       return;
     }
 
@@ -98,9 +94,7 @@ function AdminDashboard() {
 
     if (error) {
       console.error("Error adding product:", error);
-      setFormError(
-        "Could not add product. Please check your database settings."
-      );
+      setFormError("Could not add product.");
       setSaving(false);
       return;
     }
@@ -114,19 +108,14 @@ function AdminDashboard() {
     setSaving(false);
   };
 
-  // Delete product from Supabase
   const deleteProduct = async (id) => {
-    let confirmed = true;
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this product?"
+    );
 
-    try {
-      confirmed = window.confirm(
-        "Are you sure you want to delete this product?"
-      );
-    } catch {
-      confirmed = true;
+    if (!confirmed) {
+      return;
     }
-
-    if (!confirmed) return;
 
     setFormError("");
 
@@ -142,11 +131,12 @@ function AdminDashboard() {
     }
 
     setProducts((currentProducts) =>
-      currentProducts.filter((product) => product.id !== id)
+      currentProducts.filter(
+        (product) => product.id !== id
+      )
     );
   };
 
-  // Start editing a product
   const startEdit = (product) => {
     setEditingId(product.id);
     setFormError("");
@@ -164,7 +154,6 @@ function AdminDashboard() {
     });
   };
 
-  // Update product in Supabase
   const updateProduct = async (e) => {
     e.preventDefault();
 
@@ -210,7 +199,6 @@ function AdminDashboard() {
     setSaving(false);
   };
 
-  // Clear form
   const clearForm = () => {
     setForm({
       name: "",
@@ -223,19 +211,16 @@ function AdminDashboard() {
     setFormError("");
   };
 
-  // Logout
-  const logout = () => {
-    localStorage.removeItem("shopnepal_admin");
+  const logout = async () => {
+    await supabase.auth.signOut();
     navigate("/admin");
   };
 
   return (
     <main className="dashboard-page">
-
       <div className="dashboard-container">
 
         <div className="dashboard-top">
-
           <div>
             <p className="admin-label">
               SHOPNEPAL ADMIN
@@ -254,7 +239,6 @@ function AdminDashboard() {
           >
             Logout
           </button>
-
         </div>
 
         <div className="stats-grid">
@@ -279,7 +263,6 @@ function AdminDashboard() {
         <section className="admin-section">
 
           <div className="admin-section-header">
-
             <div>
               <p>PRODUCT MANAGEMENT</p>
 
@@ -289,7 +272,6 @@ function AdminDashboard() {
                   : "Add New Product"}
               </h2>
             </div>
-
           </div>
 
           <form
@@ -302,7 +284,6 @@ function AdminDashboard() {
           >
 
             <div className="form-group">
-
               <label>
                 Product Name
               </label>
@@ -313,11 +294,9 @@ function AdminDashboard() {
                 onChange={handleChange}
                 placeholder="e.g. Nike Shoes"
               />
-
             </div>
 
             <div className="form-group">
-
               <label>
                 Price
               </label>
@@ -329,11 +308,9 @@ function AdminDashboard() {
                 onChange={handleChange}
                 placeholder="e.g. 4500"
               />
-
             </div>
 
             <div className="form-group">
-
               <label>
                 Category
               </label>
@@ -344,11 +321,9 @@ function AdminDashboard() {
                 onChange={handleChange}
                 placeholder="e.g. Footwear"
               />
-
             </div>
 
             <div className="form-group form-full">
-
               <label>
                 Image URL
               </label>
@@ -359,7 +334,6 @@ function AdminDashboard() {
                 onChange={handleChange}
                 placeholder="https://..."
               />
-
             </div>
 
             {formError && (
@@ -396,7 +370,6 @@ function AdminDashboard() {
             </div>
 
           </form>
-
         </section>
 
         <section className="admin-section">
@@ -418,20 +391,31 @@ function AdminDashboard() {
           </div>
 
           {loading ? (
+
             <div className="empty-products">
-              <h2>Loading products...</h2>
+              <h2>
+                Loading products...
+              </h2>
+
               <p>
                 Please wait while we load your inventory.
               </p>
             </div>
+
           ) : products.length === 0 ? (
+
             <div className="empty-products">
-              <h2>No products yet</h2>
+              <h2>
+                No products yet
+              </h2>
+
               <p>
                 Add your first product using the form above.
               </p>
             </div>
+
           ) : (
+
             <div className="admin-products">
 
               {products.map((product) => (
@@ -492,12 +476,12 @@ function AdminDashboard() {
               ))}
 
             </div>
+
           )}
 
         </section>
 
       </div>
-
     </main>
   );
 }
