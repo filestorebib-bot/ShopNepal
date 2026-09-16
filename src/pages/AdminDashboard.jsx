@@ -50,6 +50,7 @@ function AdminDashboard() {
   });
 
   const [editingId, setEditingId] = useState(null);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
 
@@ -110,9 +111,16 @@ function AdminDashboard() {
       !form.category ||
       !form.image
     ) {
-      alert("Please fill all fields.");
+      setFormError("Please fill all fields.");
+      try {
+        alert("Please fill all fields.");
+      } catch {
+        // Safe for sandboxed iframe
+      }
       return;
     }
+
+    setFormError("");
 
     const newProduct = {
       id: Date.now(),
@@ -133,10 +141,15 @@ function AdminDashboard() {
 
   const deleteProduct = (id) => {
 
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this product?"
-      );
+    let confirmed = true;
+    try {
+      confirmed =
+        window.confirm(
+          "Are you sure you want to delete this product?"
+        );
+    } catch {
+      confirmed = true;
+    }
 
     if (!confirmed) return;
 
@@ -152,6 +165,7 @@ function AdminDashboard() {
   const startEdit = (product) => {
 
     setEditingId(product.id);
+    setFormError("");
 
     setForm({
       name: product.name,
@@ -206,6 +220,7 @@ function AdminDashboard() {
     });
 
     setEditingId(null);
+    setFormError("");
   };
 
 
@@ -357,6 +372,13 @@ function AdminDashboard() {
               />
 
             </div>
+
+
+            {formError && (
+              <div className="login-error form-full">
+                {formError}
+              </div>
+            )}
 
 
             <div className="form-buttons">
