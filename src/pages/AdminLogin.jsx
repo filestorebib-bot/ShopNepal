@@ -1,48 +1,45 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../lib/supabase";
 
 function AdminLogin() {
-
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
-
+  const handleLogin = async (e) => {
     e.preventDefault();
 
-    /*
-      LEARNING LOGIN ONLY
+    setError("");
 
-      Username:
-      admin
+    if (!email || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
 
-      Password:
-      admin123
-    */
+    setLoading(true);
 
-    if (
-      username === "admin" &&
-      password === "admin123"
-    ) {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      localStorage.setItem(
-        "shopnepal_admin",
-        "true"
-      );
-
-      navigate("/admin/dashboard");
-
-    } else {
+    if (error) {
+      console.error("Login error:", error);
 
       setError(
-        "Invalid username or password."
+        "Invalid email or password."
       );
 
+      setLoading(false);
+      return;
     }
+
+    navigate("/admin/dashboard");
   };
 
   return (
@@ -67,16 +64,17 @@ function AdminLogin() {
         <form onSubmit={handleLogin}>
 
           <label>
-            Username
+            Email
           </label>
 
           <input
-            type="text"
-            placeholder="Enter username"
-            value={username}
+            type="email"
+            placeholder="Enter admin email"
+            value={email}
             onChange={(e) =>
-              setUsername(e.target.value)
+              setEmail(e.target.value)
             }
+            autoComplete="email"
           />
 
           <label>
@@ -90,6 +88,7 @@ function AdminLogin() {
             onChange={(e) =>
               setPassword(e.target.value)
             }
+            autoComplete="current-password"
           />
 
           {error && (
@@ -101,25 +100,14 @@ function AdminLogin() {
           <button
             type="submit"
             className="login-btn"
+            disabled={loading}
           >
-            Login to Admin
+            {loading
+              ? "Logging in..."
+              : "Login to Admin"}
           </button>
 
         </form>
-
-        <div className="demo-login">
-
-          <strong>Learning Login</strong>
-
-          <p>
-            Username: <b>admin</b>
-          </p>
-
-          <p>
-            Password: <b>admin123</b>
-          </p>
-
-        </div>
 
       </div>
 
